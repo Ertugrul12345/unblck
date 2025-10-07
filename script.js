@@ -63,6 +63,37 @@
 		}
 	}
 
+	function unwrapReaderUrl(possibleReaderUrl) {
+		try {
+			const u = new URL(possibleReaderUrl);
+			if (u.hostname === 'r.jina.ai') {
+				const path = u.pathname.startsWith('/') ? u.pathname.slice(1) : u.pathname;
+				if (path.startsWith('https://') || path.startsWith('http://')) {
+					return `${path}${u.search}${u.hash}`;
+				}
+			}
+			return possibleReaderUrl;
+		} catch { return possibleReaderUrl; }
+	}
+
+	function isSearchResultsUrl(urlString) {
+		try {
+			const u = new URL(urlString);
+			const host = u.hostname;
+			const path = u.pathname;
+			if ((host.includes('google.') && path.startsWith('/search')) ||
+				(host.includes('bing.com') && path.startsWith('/search')) ||
+				(host.includes('search.brave.com') && path.startsWith('/search')) ||
+				(host.includes('duckduckgo.com') && (path.startsWith('/lite') || path === '/')) ||
+				(host.includes('lite.duckduckgo.com'))) {
+				return true;
+			}
+			return false;
+		} catch {
+			return false;
+		}
+	}
+
 	function setOverlay(contentHtml) {
 		overlay.innerHTML = contentHtml;
 		overlay.classList.remove('hidden');
@@ -88,7 +119,7 @@
 		}
 
 		// Apply reader mode only for direct URLs, not for search result pages
-		if (readerToggle.checked && maybeUrl) {
+		if (readerToggle.checked && maybeUrl && !isSearchResultsUrl(finalUrl)) {
 			finalUrl = buildReaderUrl(finalUrl);
 		}
 
@@ -97,16 +128,19 @@
 	}
 
 	function loadInFrame(url) {
+		// If a reader URL targets a search engine, unwrap and load original instead
+		const unwrapped = unwrapReaderUrl(url);
+		const targetUrl = isSearchResultsUrl(unwrapped) ? unwrapped : url;
 		hideOverlay();
 		viewer.src = 'about:blank';
 		// Try to load; if blocked by x-frame-options/csp, the frame may not load content
-		viewer.src = url;
+		viewer.src = targetUrl;
 
 		// Provide hint UI after a short delay
 		const timeout = setTimeout(() => {
 			let extraActions = '';
 			try {
-				const u = new URL(url);
+				const u = new URL(targetUrl);
 				const isGoogleSearch = (u.hostname.includes('google.') && u.pathname.startsWith('/search'));
 				if (isGoogleSearch) {
 					const q = u.searchParams.get('q') || '';
@@ -124,7 +158,7 @@
 					<h2>Embedding may be blocked or rate-limited.</h2>
 					<p>Some websites disallow embedding or may show CAPTCHAs. You can open directly, try reader mode, or switch engines.</p>
 					<div class="actions">
-						<a class="primary" href="${url}" target="_blank" rel="noopener noreferrer">Open in new tab</a>
+						<a class="primary" href="${targetUrl}" target="_blank" rel="noopener noreferrer">Open in new tab</a>
 						<button id="tryReaderBtn" type="button">Try Reader Unblock</button>
 						${extraActions}
 					</div>
@@ -134,7 +168,12 @@
 			if (tryReaderBtn) {
 				tryReaderBtn.onclick = () => {
 					readerToggle.checked = true;
-					loadInFrame(buildReaderUrl(url));
+					// Do not wrap search results in reader mode
+					if (isSearchResultsUrl(targetUrl)) {
+						loadInFrame(targetUrl);
+						return;
+					}
+					loadInFrame(buildReaderUrl(targetUrl));
 				};
 			}
 		}, 1600);
