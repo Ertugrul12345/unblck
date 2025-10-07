@@ -1,215 +1,160 @@
-﻿const form = document.querySelector('#search-form');
-const input = document.querySelector('#search-input');
-const resultsContainer = document.querySelector('#results');
-const statusMessage = document.querySelector('#status-message');
-const searchButton = form.querySelector('.search__button');
+/*
+ Basic in-page browser with search, URL input, engine selection, and an optional
+ reader-unblock mode that attempts to fetch through public text-mode endpoints.
+ It cannot bypass site CSP/x-frame-deny; when blocked, we present helpful options.
+*/
 
-const endpoint = 'https://api.duckduckgo.com/';
+(() => {
+	const addressInput = document.getElementById('addressInput');
+	const engineSelect = document.getElementById('engineSelect');
+	const readerToggle = document.getElementById('readerToggle');
+	const navForm = document.getElementById('navForm');
+	const backBtn = document.getElementById('backBtn');
+	const forwardBtn = document.getElementById('forwardBtn');
+	const homeBtn = document.getElementById('homeBtn');
+	const openTabBtn = document.getElementById('openTabBtn');
+	const viewer = document.getElementById('viewer');
+	const overlay = document.getElementById('overlay');
 
-showWelcomeState();
-notify('Enter a query to get started.');
+	const HOME = 'https://lite.duckduckgo.com/lite/';
 
-form.addEventListener('submit', async (event) => {
-    event.preventDefault();
+	const engines = {
+		duck: q => `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(q)}`,
+		brave: q => `https://search.brave.com/search?q=${encodeURIComponent(q)}`,
+		google: q => `https://www.google.com/search?q=${encodeURIComponent(q)}`,
+		bing: q => `https://www.bing.com/search?q=${encodeURIComponent(q)}`
+	};
 
-    const query = input.value.trim();
-    if (!query) {
-        notify('Type something to search the open web.');
-        input.focus();
-        return;
-    }
+	function isProbablyUrl(input) {
+		try {
+			// Accept bare domains like example.com
+			if (/^\w+:\/\//i.test(input)) return true;
+			if (/^[\w.-]+\.[a-zA-Z]{2,}(?:[:/].*)?$/i.test(input)) return true;
+			return false;
+		} catch { return false; }
+	}
 
-    setLoading(true);
-    notify('Searching the privacy-friendly index...');
+	function normalizeToUrl(input) {
+		if (/^\w+:\/\//i.test(input)) return input;
+		if (/^[\w.-]+\.[a-zA-Z]{2,}(?:[:/].*)?$/i.test(input)) return `https://${input}`;
+		return null;
+	}
 
-    try {
-        const url = `${endpoint}?${new URLSearchParams({
-            q: query,
-            format: 'json',
-            no_redirect: '1',
-            no_html: '1',
-        }).toString()}`;
+	function buildReaderUrl(targetUrl) {
+		// Use textise dot iitty API-like services where possible; we attempt a simple
+		// proxy via textise dot iitty instances or textise dot iitty endpoints.
+		// Fallbacks are non-guaranteed and may be rate-limited.
+		const candidates = [
+			`https://r.jina.ai/http://r.jina.ai/http://r.jina.ai/http://r.jina.ai/http://r.jina.ai/http://r.jina.ai/http://r.jina.ai/${targetUrl}`,
+			`https://r.jina.ai/http://${targetUrl}`,
+			`https://r.jina.ai/https://${targetUrl}`,
+			`https://r.jina.ai/${targetUrl}`
+		];
+		return candidates[0];
+	}
 
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`Request failed with status ${response.status}`);
-        }
+	function setOverlay(contentHtml) {
+		overlay.innerHTML = contentHtml;
+		overlay.classList.remove('hidden');
+	}
 
-        const data = await response.json();
-        const assembled = assembleResults(data, query);
+	function hideOverlay() {
+		overlay.classList.add('hidden');
+		overlay.innerHTML = '';
+	}
 
-        if (assembled.length === 0) {
-            showEmptyState(query);
-            notify(`No unblocked results for "${query}". Try a broader phrase.`);
-            return;
-        }
+	function navigate(input) {
+		const trimmed = (input || '').trim();
+		if (!trimmed) return;
 
-        renderResults(assembled);
-        notify(`Showing ${assembled.length} ready-to-open result${assembled.length === 1 ? '' : 's'}.`);
-    } catch (error) {
-        console.error(error);
-        resultsContainer.innerHTML = '';
-        notify('Something went wrong reaching the search index. Check your connection and try again.');
-    } finally {
-        setLoading(false);
-    }
-});
+		const maybeUrl = normalizeToUrl(trimmed);
+		let finalUrl;
 
-function assembleResults(data, query) {
-    const results = [];
+		if (maybeUrl) {
+			finalUrl = maybeUrl;
+		} else {
+			const engine = engines[engineSelect.value] || engines.duck;
+			finalUrl = engine(trimmed);
+		}
 
-    if (data.AbstractURL && data.AbstractText) {
-        results.push({
-            title: data.Heading || query,
-            description: data.AbstractText,
-            url: data.AbstractURL,
-        });
-    }
+		if (readerToggle.checked) {
+			try {
+				const u = new URL(finalUrl);
+				const readerTarget = u.protocol.startsWith('http') ? u.href : `https://${trimmed}`;
+				const stripped = readerTarget.replace(/^https?:\/\//i, '');
+				finalUrl = buildReaderUrl(stripped);
+			} catch {
+				// best effort
+				const stripped = finalUrl.replace(/^https?:\/\//i, '');
+				finalUrl = buildReaderUrl(stripped);
+			}
+		}
 
-    if (Array.isArray(data.Results)) {
-        for (const item of data.Results) {
-            const title = stripHtml(item.Text || item.Result || '');
-            const url = item.FirstURL;
-            if (title && url) {
-                results.push({
-                    title,
-                    description: title,
-                    url,
-                });
-            }
-        }
-    }
+		loadInFrame(finalUrl);
+	}
 
-    if (Array.isArray(data.RelatedTopics)) {
-        results.push(...flattenTopics(data.RelatedTopics));
-    }
+	function loadInFrame(url) {
+		hideOverlay();
+		viewer.src = 'about:blank';
+		// Try to load; if blocked by x-frame-options/csp, the frame may not load content
+		viewer.src = url;
 
-    const seen = new Set();
-    return results.filter((result) => {
-        if (seen.has(result.url)) {
-            return false;
-        }
-        seen.add(result.url);
-        return true;
-    });
-}
+		// Provide hint UI after a short delay
+		const timeout = setTimeout(() => {
+			setOverlay(`
+				<div class="card">
+					<h2>Embedding may be blocked by the site.</h2>
+					<p>Some websites disallow being shown inside other pages. You can still open it directly or try reader mode.</p>
+					<div class="actions">
+						<a class="primary" href="${url}" target="_blank" rel="noopener noreferrer">Open in new tab</a>
+						<button id="tryReaderBtn" type="button">Try Reader Unblock</button>
+					</div>
+				</div>
+			`);
+			const tryReaderBtn = document.getElementById('tryReaderBtn');
+			if (tryReaderBtn) {
+				tryReaderBtn.onclick = () => {
+					readerToggle.checked = true;
+					const stripped = url.replace(/^https?:\/\//i, '');
+					loadInFrame(buildReaderUrl(stripped));
+				};
+			}
+		}, 1600);
 
-function flattenTopics(topics) {
-    const collected = [];
+		viewer.addEventListener('load', () => {
+			clearTimeout(timeout);
+			hideOverlay();
+		}, { once: true });
+	}
 
-    for (const topic of topics) {
-        if (Array.isArray(topic.Topics)) {
-            collected.push(...flattenTopics(topic.Topics));
-            continue;
-        }
+	// Navigation controls
+	backBtn.onclick = () => history.back();
+	forwardBtn.onclick = () => history.forward();
+	homeBtn.onclick = () => {
+		addressInput.value = '';
+		viewer.src = HOME;
+		hideOverlay();
+	};
+	openTabBtn.onclick = () => {
+		const current = viewer?.src;
+		if (current && current !== 'about:blank') window.open(current, '_blank', 'noopener');
+	};
 
-        const rawText = stripHtml(topic.Text || topic.Result || '');
-        const url = topic.FirstURL;
-        if (!rawText || !url) {
-            continue;
-        }
+	navForm.addEventListener('submit', e => {
+		e.preventDefault();
+		navigate(addressInput.value);
+	});
 
-        const dash = rawText.indexOf(' - ');
-        const title = dash > -1 ? rawText.slice(0, dash).trim() : rawText;
-        const description = dash > -1 ? rawText.slice(dash + 3).trim() : rawText;
+	// Improve UX: Ctrl+L / focus
+	document.addEventListener('keydown', e => {
+		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'l') {
+			e.preventDefault();
+			addressInput.select();
+		}
+	});
 
-        collected.push({
-            title: title || rawText,
-            description: description || rawText,
-            url,
-        });
-    }
+	// Initialize
+	viewer.src = HOME;
+})();
 
-    return collected;
-}
 
-function renderResults(results) {
-    resultsContainer.innerHTML = '';
-
-    results.forEach((result) => {
-        const card = document.createElement('article');
-        card.className = 'result-card';
-
-        const heading = document.createElement('h2');
-        heading.className = 'result-card__title';
-        heading.textContent = result.title;
-
-        const snippet = document.createElement('p');
-        snippet.className = 'result-card__description';
-        snippet.textContent = result.description;
-
-        const link = document.createElement('a');
-        link.className = 'result-card__link';
-        link.href = result.url;
-        link.textContent = 'Open result';
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-
-        card.append(heading, snippet, link);
-        resultsContainer.appendChild(card);
-    });
-}
-
-function showWelcomeState() {
-    resultsContainer.innerHTML = '';
-
-    const intro = document.createElement('article');
-    intro.className = 'result-card result-card--intro';
-
-    const heading = document.createElement('h2');
-    heading.className = 'result-card__title';
-    heading.textContent = 'Search without roadblocks';
-
-    const body = document.createElement('p');
-    body.className = 'result-card__description';
-    body.textContent = 'ClearPath routes your query through DuckDuckGo instant answers. No login, no tracking.';
-
-    const tips = document.createElement('ul');
-    tips.className = 'result-card__tips';
-    const hints = [
-        'Use natural language or short keywords for best matches.',
-        'Results open in a new tab so this page stays available.',
-        'If nothing appears, try another phrasing or check your connection.'
-    ];
-
-    hints.forEach((text) => {
-        const item = document.createElement('li');
-        item.textContent = text;
-        tips.appendChild(item);
-    });
-
-    intro.append(heading, body, tips);
-    resultsContainer.appendChild(intro);
-}
-
-function showEmptyState(query) {
-    resultsContainer.innerHTML = '';
-    const empty = document.createElement('div');
-    empty.className = 'result-card';
-
-    const title = document.createElement('h2');
-    title.className = 'result-card__title';
-    title.textContent = 'No direct hits yet';
-
-    const body = document.createElement('p');
-    body.className = 'result-card__description';
-    body.textContent = `We could not find instant answers for "${query}". Try using fewer words or a different spelling.`;
-
-    empty.append(title, body);
-    resultsContainer.appendChild(empty);
-}
-
-function notify(message) {
-    statusMessage.textContent = message;
-}
-
-function setLoading(state) {
-    searchButton.disabled = state;
-    searchButton.textContent = state ? 'Searching...' : 'Search';
-}
-
-function stripHtml(html) {
-    const tmp = document.createElement('div');
-    tmp.innerHTML = html;
-    return tmp.textContent || tmp.innerText || '';
-}

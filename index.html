@@ -1,45 +1,44 @@
-﻿<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ClearPath Search</title>
-    <link rel="stylesheet" href="styles.css" />
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>All-in-One Browser</title>
+	<link rel="stylesheet" href="styles.css">
+	<link rel="icon" href="data:,">
 </head>
 <body>
-    <header class="hero">
-        <div class="hero__inner">
-            <h1>ClearPath Search</h1>
-            <p>Private, distraction-free search that stays unblocked.</p>
-            <form id="search-form" class="search">
-                <label class="search__label" for="search-input">Search the web</label>
-                <div class="search__controls">
-                    <input
-                        id="search-input"
-                        class="search__input"
-                        name="q"
-                        type="search"
-                        placeholder="What do you want to discover?"
-                        autocomplete="off"
-                        required
-                        aria-describedby="status-message"
-                    />
-                    <button class="search__button" type="submit">Search</button>
-                </div>
-            </form>
-            <p id="status-message" class="status" role="status" aria-live="polite"></p>
-        </div>
-    </header>
+	<header class="topbar">
+		<div class="controls-left">
+			<button id="backBtn" title="Back" aria-label="Back">⟵</button>
+			<button id="forwardBtn" title="Forward" aria-label="Forward">⟶</button>
+			<button id="homeBtn" title="Home" aria-label="Home">⌂</button>
+		</div>
+		<form id="navForm" class="nav" autocomplete="off">
+			<input id="addressInput" type="text" inputmode="url" placeholder="Search the web or enter URL" aria-label="Search or URL" spellcheck="false">
+			<select id="engineSelect" title="Search engine">
+				<option value="duck">DuckDuckGo Lite</option>
+				<option value="brave">Brave</option>
+				<option value="google">Google</option>
+				<option value="bing">Bing</option>
+			</select>
+			<label class="toggle">
+				<input type="checkbox" id="readerToggle">
+				<span>Unblock via Reader</span>
+			</label>
+			<button id="goBtn" type="submit" aria-label="Go">Go</button>
+		</form>
+		<div class="controls-right">
+			<button id="openTabBtn" title="Open in new tab" aria-label="Open in new tab">↗</button>
+		</div>
+	</header>
 
-    <main class="results" id="results" aria-live="polite"></main>
+	<main class="viewport">
+		<div id="overlay" class="overlay hidden" role="status" aria-live="polite"></div>
+		<iframe id="viewer" title="Embedded Web Viewer" sandbox="allow-forms allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-scripts allow-top-navigation-by-user-activation" referrerpolicy="no-referrer"></iframe>
+	</main>
 
-    <footer class="footer">
-        <small>
-            Results are powered by the DuckDuckGo Instant Answer API—no tracking, no ads, and easy to reach when other engines are blocked.
-        </small>
-    </footer>
-
-    <script src="script.js" defer></script>
+	<script src="script.js"></script>
 </body>
 </html>
+
