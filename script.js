@@ -104,13 +104,29 @@
 
 		// Provide hint UI after a short delay
 		const timeout = setTimeout(() => {
+			let extraActions = '';
+			try {
+				const u = new URL(url);
+				const isGoogleSearch = (u.hostname.includes('google.') && u.pathname.startsWith('/search'));
+				if (isGoogleSearch) {
+					const q = u.searchParams.get('q') || '';
+					const duck = `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(q)}`;
+					const brave = `https://search.brave.com/search?q=${encodeURIComponent(q)}`;
+					extraActions = `
+						<a href="${duck}" target="_blank" rel="noopener noreferrer">DuckDuckGo Lite</a>
+						<a href="${brave}" target="_blank" rel="noopener noreferrer">Brave Search</a>
+					`;
+				}
+			} catch {}
+
 			setOverlay(`
 				<div class="card">
-					<h2>Embedding may be blocked by the site.</h2>
-					<p>Some websites disallow being shown inside other pages. You can still open it directly or try reader mode.</p>
+					<h2>Embedding may be blocked or rate-limited.</h2>
+					<p>Some websites disallow embedding or may show CAPTCHAs. You can open directly, try reader mode, or switch engines.</p>
 					<div class="actions">
 						<a class="primary" href="${url}" target="_blank" rel="noopener noreferrer">Open in new tab</a>
 						<button id="tryReaderBtn" type="button">Try Reader Unblock</button>
+						${extraActions}
 					</div>
 				</div>
 			`);
