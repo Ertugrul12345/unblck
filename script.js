@@ -40,17 +40,16 @@
 		return null;
 	}
 
-	function buildReaderUrl(targetUrl) {
-		// Use textise dot iitty API-like services where possible; we attempt a simple
-		// proxy via textise dot iitty instances or textise dot iitty endpoints.
-		// Fallbacks are non-guaranteed and may be rate-limited.
-		const candidates = [
-			`https://r.jina.ai/http://r.jina.ai/http://r.jina.ai/http://r.jina.ai/http://r.jina.ai/http://r.jina.ai/http://r.jina.ai/${targetUrl}`,
-			`https://r.jina.ai/http://${targetUrl}`,
-			`https://r.jina.ai/https://${targetUrl}`,
-			`https://r.jina.ai/${targetUrl}`
-		];
-		return candidates[0];
+	function buildReaderUrl(targetUrlOrHref) {
+		// Build a valid r.jina.ai reader URL: https://r.jina.ai/https://example.com/path
+		try {
+			const u = new URL(targetUrlOrHref);
+			return `https://r.jina.ai/${u.protocol}//${u.host}${u.pathname}${u.search}`;
+		} catch {
+			// If we got a host/path without protocol
+			const cleaned = String(targetUrlOrHref).replace(/^https?:\/\//i, '');
+			return `https://r.jina.ai/https://${cleaned}`;
+		}
 	}
 
 	function setOverlay(contentHtml) {
@@ -77,17 +76,9 @@
 			finalUrl = engine(trimmed);
 		}
 
+
 		if (readerToggle.checked) {
-			try {
-				const u = new URL(finalUrl);
-				const readerTarget = u.protocol.startsWith('http') ? u.href : `https://${trimmed}`;
-				const stripped = readerTarget.replace(/^https?:\/\//i, '');
-				finalUrl = buildReaderUrl(stripped);
-			} catch {
-				// best effort
-				const stripped = finalUrl.replace(/^https?:\/\//i, '');
-				finalUrl = buildReaderUrl(stripped);
-			}
+			finalUrl = buildReaderUrl(finalUrl);
 		}
 
 		loadInFrame(finalUrl);
