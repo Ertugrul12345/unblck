@@ -1,0 +1,45 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ClearPath Search</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+    <header class="hero">
+        <div class="hero__inner">
+            <h1>ClearPath Search</h1>
+            <p>Private, distraction-free search that stays unblocked.</p>
+            <form id="search-form" class="search">
+                <label class="search__label" for="search-input">Search the web</label>
+                <div class="search__controls">
+                    <input
+                        id="search-input"
+                        class="search__input"
+                        name="q"
+                        type="search"
+                        placeholder="What do you want to discover?"
+                        autocomplete="off"
+                        required
+                        aria-describedby="status-message"
+                    />
+                    <button class="search__button" type="submit">Search</button>
+                </div>
+            </form>
+            <p id="status-message" class="status" role="status" aria-live="polite"></p>
+        </div>
+    </header>
+
+    <main class="results" id="results" aria-live="polite"></main>
+
+    <footer class="footer">
+        <small>
+            Results are powered by the DuckDuckGo Instant Answer API—no tracking, no ads, and easy to reach when other engines are blocked.
+        </small>
+    </footer>
+
+    <script src="script.js" defer></script>
+</body>
+</html>
