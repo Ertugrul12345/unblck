@@ -40,11 +40,22 @@
 		return null;
 	}
 
+	function expandDuckRedirect(possibleUrl) {
+		try {
+			const u = new URL(possibleUrl);
+			if (u.hostname.endsWith('duckduckgo.com') && u.pathname.startsWith('/l/')) {
+				const uddg = u.searchParams.get('uddg');
+				if (uddg) return decodeURIComponent(uddg);
+			}
+			return possibleUrl;
+		} catch { return possibleUrl; }
+	}
+
 	function buildReaderUrl(targetUrlOrHref) {
 		// Build a valid r.jina.ai reader URL: https://r.jina.ai/https://example.com/path
 		try {
 			const u = new URL(targetUrlOrHref);
-			return `https://r.jina.ai/${u.protocol}//${u.host}${u.pathname}${u.search}`;
+			return `https://r.jina.ai/${u.protocol}//${u.host}${u.pathname}${u.search}${u.hash}`;
 		} catch {
 			// If we got a host/path without protocol
 			const cleaned = String(targetUrlOrHref).replace(/^https?:\/\//i, '');
@@ -70,17 +81,18 @@
 		let finalUrl;
 
 		if (maybeUrl) {
-			finalUrl = maybeUrl;
+			finalUrl = expandDuckRedirect(maybeUrl);
 		} else {
 			const engine = engines[engineSelect.value] || engines.duck;
 			finalUrl = engine(trimmed);
 		}
 
-
-		if (readerToggle.checked) {
+		// Apply reader mode only for direct URLs, not for search result pages
+		if (readerToggle.checked && maybeUrl) {
 			finalUrl = buildReaderUrl(finalUrl);
 		}
 
+		addressInput.value = finalUrl;
 		loadInFrame(finalUrl);
 	}
 
@@ -106,8 +118,7 @@
 			if (tryReaderBtn) {
 				tryReaderBtn.onclick = () => {
 					readerToggle.checked = true;
-					const stripped = url.replace(/^https?:\/\//i, '');
-					loadInFrame(buildReaderUrl(stripped));
+					loadInFrame(buildReaderUrl(url));
 				};
 			}
 		}, 1600);
